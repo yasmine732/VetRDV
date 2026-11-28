@@ -1,0 +1,798 @@
+{
+  "info": {
+    "name": "VetRDV - Appointment Service",
+    "description": "Tests du CRUD Appointment Service. Lancer avec le Collection Runner dans l'ordre (le dossier Erreurs utilise l'id créé dans le dossier CRUD).",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "CRUD",
+      "item": [
+        {
+          "name": "1. Créer un rendez-vous (201)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/appointments",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "appointments"
+              ]
+            },
+            "description": "Crée un rendez-vous. Le statut initial est PENDING. L'id est mémorisé dans {{appointmentId}}.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"ownerId\": 1,\n  \"animalId\": 3,\n  \"vetId\": {{vetId}},\n  \"slotId\": {{slotId}},\n  \"motif\": \"Vaccination annuelle\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Créneau aléatoire pour pouvoir relancer la collection sans conflit",
+                  "pm.collectionVariables.set(\"slotId\", Math.floor(Math.random() * 900000) + 100000);"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Code HTTP 201\", () => pm.response.to.have.status(201));",
+                  "pm.test(\"Statut = PENDING\", () => pm.expect(pm.response.json().statut).to.eql(\"PENDING\"));",
+                  "const json = pm.response.json();",
+                  "pm.test(\"Un id est généré\", () => pm.expect(json.id).to.be.a(\"number\"));",
+                  "pm.test(\"En-tête Location présent\", () => pm.response.to.have.header(\"Location\"));",
+                  "pm.collectionVariables.set(\"appointmentId\", json.id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "2. Consulter par id (200)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/appointments/{{appointmentId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "appointments",
+                "{{appointmentId}}"
+              ]
+            },
+            "description": ""
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Code HTTP 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Bon id\", () => pm.expect(pm.response.json().id).to.eql(Number(pm.collectionVariables.get(\"appointmentId\"))));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "3. Consulter par vétérinaire (200)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/appointments?vetId={{vetId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "appointments"
+              ],
+              "query": [
+                {
+                  "key": "vetId",
+                  "value": "{{vetId}}"
+                }
+              ]
+            },
+            "description": ""
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Code HTTP 200\", () => pm.response.to.have.status(200));",
+                  "const list = pm.response.json();",
+                  "pm.test(\"Réponse = tableau\", () => pm.expect(list).to.be.an(\"array\"));",
+                  "pm.test(\"Contient le rendez-vous créé\", () => pm.expect(list.map(a => a.id)).to.include(Number(pm.collectionVariables.get(\"appointmentId\"))));",
+                  "pm.test(\"Tous du même vétérinaire\", () => list.forEach(a => pm.expect(a.vetId).to.eql(Number(pm.collectionVariables.get(\"vetId\")))));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "4. Modifier le statut → CONFIRMED (200)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-User-Role",
+                "value": "VET"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/appointments/{{appointmentId}}/status",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "appointments",
+                "{{appointmentId}}",
+                "status"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"statut\": \"CONFIRMED\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Code HTTP 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Statut = CONFIRMED\", () => pm.expect(pm.response.json().statut).to.eql(\"CONFIRMED\"));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "5. Annuler (200)",
+          "request": {
+            "method": "PUT",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/appointments/{{appointmentId}}/cancel",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "appointments",
+                "{{appointmentId}}",
+                "cancel"
+              ]
+            },
+            "description": "Annulation logique : la ligne reste en base avec le statut CANCELLED."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Code HTTP 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Statut = CANCELLED\", () => pm.expect(pm.response.json().statut).to.eql(\"CANCELLED\"));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "6. Toujours en base après annulation (200)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/appointments/{{appointmentId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "appointments",
+                "{{appointmentId}}"
+              ]
+            },
+            "description": ""
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Code HTTP 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Statut = CANCELLED\", () => pm.expect(pm.response.json().statut).to.eql(\"CANCELLED\"));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Erreurs",
+      "item": [
+        {
+          "name": "E1. ID inexistant (404)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/appointments/999999999",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "appointments",
+                "999999999"
+              ]
+            },
+            "description": ""
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Code HTTP 404\", () => pm.response.to.have.status(404));",
+                  "pm.test(\"Corps d'erreur JSON\", () => { const j = pm.response.json(); pm.expect(j.status).to.eql(404); pm.expect(j.message).to.be.a(\"string\"); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "E2. Annuler un ID inexistant (404)",
+          "request": {
+            "method": "PUT",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/appointments/999999999/cancel",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "appointments",
+                "999999999",
+                "cancel"
+              ]
+            },
+            "description": ""
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Code HTTP 404\", () => pm.response.to.have.status(404));",
+                  "pm.test(\"Corps d'erreur JSON\", () => { const j = pm.response.json(); pm.expect(j.status).to.eql(404); pm.expect(j.message).to.be.a(\"string\"); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "E3. Données invalides à la création (400)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/appointments",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "appointments"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"ownerId\": -1,\n  \"animalId\": 3,\n  \"slotId\": 5,\n  \"motif\": \"\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Code HTTP 400\", () => pm.response.to.have.status(400));",
+                  "pm.test(\"Corps d'erreur JSON\", () => { const j = pm.response.json(); pm.expect(j.status).to.eql(400); pm.expect(j.message).to.be.a(\"string\"); });",
+                  "const d = pm.response.json().details;",
+                  "pm.test(\"Erreurs par champ\", () => { pm.expect(d).to.have.property(\"ownerId\"); pm.expect(d).to.have.property(\"vetId\"); pm.expect(d).to.have.property(\"motif\"); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "E4. Id non numérique (400)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/appointments/abc",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "appointments",
+                "abc"
+              ]
+            },
+            "description": ""
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Code HTTP 400\", () => pm.response.to.have.status(400));",
+                  "pm.test(\"Corps d'erreur JSON\", () => { const j = pm.response.json(); pm.expect(j.status).to.eql(400); pm.expect(j.message).to.be.a(\"string\"); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "E5. vetId manquant (400)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/appointments",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "appointments"
+              ]
+            },
+            "description": ""
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Code HTTP 400\", () => pm.response.to.have.status(400));",
+                  "pm.test(\"Corps d'erreur JSON\", () => { const j = pm.response.json(); pm.expect(j.status).to.eql(400); pm.expect(j.message).to.be.a(\"string\"); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "E6. Statut inconnu (400)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/appointments/{{appointmentId}}/status",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "appointments",
+                "{{appointmentId}}",
+                "status"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"statut\": \"FINISHED\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Code HTTP 400\", () => pm.response.to.have.status(400));",
+                  "pm.test(\"Corps d'erreur JSON\", () => { const j = pm.response.json(); pm.expect(j.status).to.eql(400); pm.expect(j.message).to.be.a(\"string\"); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "E7. Conflit : annuler deux fois (409)",
+          "request": {
+            "method": "PUT",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/appointments/{{appointmentId}}/cancel",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "appointments",
+                "{{appointmentId}}",
+                "cancel"
+              ]
+            },
+            "description": ""
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Code HTTP 409\", () => pm.response.to.have.status(409));",
+                  "pm.test(\"Corps d'erreur JSON\", () => { const j = pm.response.json(); pm.expect(j.status).to.eql(409); pm.expect(j.message).to.be.a(\"string\"); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "E8. Conflit de statut : CANCELLED → CONFIRMED (409)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/appointments/{{appointmentId}}/status",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "appointments",
+                "{{appointmentId}}",
+                "status"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"statut\": \"CONFIRMED\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Code HTTP 409\", () => pm.response.to.have.status(409));",
+                  "pm.test(\"Corps d'erreur JSON\", () => { const j = pm.response.json(); pm.expect(j.status).to.eql(409); pm.expect(j.message).to.be.a(\"string\"); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "E9. Préparer : nouveau rendez-vous (201)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/appointments",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "appointments"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"ownerId\": 1,\n  \"animalId\": 4,\n  \"vetId\": {{vetId}},\n  \"slotId\": {{slotId2}},\n  \"motif\": \"Contrôle\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.collectionVariables.set(\"slotId2\", Math.floor(Math.random() * 900000) + 1000000);"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Code HTTP 201\", () => pm.response.to.have.status(201));",
+                  "pm.collectionVariables.set(\"appointmentId2\", pm.response.json().id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "E10. Conflit : créneau déjà réservé (409)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/appointments",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "appointments"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"ownerId\": 2,\n  \"animalId\": 7,\n  \"vetId\": {{vetId}},\n  \"slotId\": {{slotId2}},\n  \"motif\": \"Autre animal\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Code HTTP 409\", () => pm.response.to.have.status(409));",
+                  "pm.test(\"Corps d'erreur JSON\", () => { const j = pm.response.json(); pm.expect(j.status).to.eql(409); pm.expect(j.message).to.be.a(\"string\"); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "E11. Conflit de statut : PENDING → DONE (409)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/appointments/{{appointmentId2}}/status",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "appointments",
+                "{{appointmentId2}}",
+                "status"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"statut\": \"DONE\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Code HTTP 409\", () => pm.response.to.have.status(409));",
+                  "pm.test(\"Corps d'erreur JSON\", () => { const j = pm.response.json(); pm.expect(j.status).to.eql(409); pm.expect(j.message).to.be.a(\"string\"); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "E12. Accès refusé : OWNER confirme (403)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-User-Role",
+                "value": "OWNER"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/appointments/{{appointmentId2}}/status",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "appointments",
+                "{{appointmentId2}}",
+                "status"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"statut\": \"CONFIRMED\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Code HTTP 403\", () => pm.response.to.have.status(403));",
+                  "pm.test(\"Corps d'erreur JSON\", () => { const j = pm.response.json(); pm.expect(j.status).to.eql(403); pm.expect(j.message).to.be.a(\"string\"); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "E13. Créneau libéré après annulation : re-réservation (201)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/appointments",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "appointments"
+              ]
+            },
+            "description": "Le créneau du rendez-vous annulé à l'étape 5 peut être réservé de nouveau.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"ownerId\": 1,\n  \"animalId\": 3,\n  \"vetId\": {{vetId}},\n  \"slotId\": {{slotId}},\n  \"motif\": \"Nouvelle date\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Code HTTP 201\", () => pm.response.to.have.status(201));",
+                  "pm.test(\"Statut = PENDING\", () => pm.expect(pm.response.json().statut).to.eql(\"PENDING\"));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:8083"
+    },
+    {
+      "key": "vetId",
+      "value": "2"
+    },
+    {
+      "key": "slotId",
+      "value": ""
+    },
+    {
+      "key": "slotId2",
+      "value": ""
+    },
+    {
+      "key": "appointmentId",
+      "value": ""
+    },
+    {
+      "key": "appointmentId2",
+      "value": ""
+    }
+  ]
+}
